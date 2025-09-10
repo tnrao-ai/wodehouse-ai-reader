@@ -23,8 +23,8 @@ export default function App() {
   }, [isDarkMode]);
 
   useEffect(() => {
-    // Fetch the library index
-    fetch('/content/library.json')
+    // Fetch the library index, ensuring no cache is used.
+    fetch('/content/library.json', { cache: 'no-cache' })
       .then(response => response.json())
       .then(data => {
         setLibrary(data);
@@ -39,8 +39,8 @@ export default function App() {
   const handleSelectBook = (book) => {
     setSelectedBook(book);
     setIsLoading(true);
-    // Fetch the full book content
-    fetch(`/content/${book.contentFile}`)
+    // Fetch the full book content, ensuring no cache is used.
+    fetch(`/content/${book.contentFile}`, { cache: 'no-cache' })
       .then(response => response.json())
       .then(data => {
         setBookContent(data);
@@ -99,7 +99,7 @@ export default function App() {
         )}
       </main>
       <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
-      <AiPanel isOpen={isAiPanelOpen} onClose={() => setIsAiPanelOpen(false)} isLoading={isAiLoading} response={aiResponse} />
+      <AiPanel isOpen={isAiPanelOpen} onClose={() => setIsAiPanelOpen(false)} isLoading={isAiLoading} response={response} />
     </div>
   );
 }
@@ -139,14 +139,32 @@ const LibraryView = ({ library, onSelectBook }) => (
 
 const ReadingView = ({ book, currentChapterIndex, setCurrentChapterIndex, onBack, onAiSummary }) => {
   const chapter = book.chapters[currentChapterIndex];
-  const contentRef = useRef(null);
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const contentPaneRef = useRef(null);
+  const contentTextRef = useRef(null);
+  
+  // Recalculate total pages when chapter or window size changes
   useEffect(() => {
-    // Scroll to top of content when chapter changes
-    if (contentRef.current) {
-      contentRef.current.scrollTop = 0;
-    }
-  }, [currentChapterIndex]);
+    const calculatePages = () => {
+      if (contentPaneRef.current && contentTextRef.current) {
+        const paneWidth = contentPaneRef.current.clientWidth;
+        const totalTextWidth = contentTextRef.current.scrollWidth;
+        const pages = Math.max(1, Math.ceil(totalTextWidth / paneWidth));
+        setTotalPages(pages);
+      }
+    };
+
+    // Calculate on mount and on window resize
+    calculatePages();
+    window.addEventListener('resize', calculatePages);
+    
+    // Reset to first page when chapter changes
+    setCurrentPage(1);
+
+    return () => window.removeEventListener('resize', calculatePages);
+  }, [chapter]);
+
 
   const goToNextChapter = () => {
     if (currentChapterIndex < book.chapters.length - 1) {
@@ -159,32 +177,70 @@ const ReadingView = ({ book, currentChapterIndex, setCurrentChapterIndex, onBack
       setCurrentChapterIndex(currentChapterIndex - 1);
     }
   };
+  
+  const goToNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const goToPreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
 
   return (
     <div className="flex flex-col h-[calc(100vh-150px)]">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+      {/* Header */}
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <button onClick={onBack} className="text-blue-500 hover:underline mb-4">
           &larr; Back to Library
         </button>
-        <h2 className="text-2xl font-bold font-serif">{book.title}</h2>
-        <h3 className="text-lg text-gray-600 dark:text-gray-400">{chapter.title}</h3>
+        <div className="flex justify-between items-center">
+            <div>
+                 <h2 className="text-2xl font-bold font-serif">{book.title}</h2>
+                 <h3 className="text-lg text-gray-600 dark:text-gray-400">{chapter.title}</h3>
+            </div>
+            <div className="flex items-center gap-4">
+                <button onClick={goToPreviousChapter} disabled={currentChapterIndex === 0} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded disabled:opacity-50">Prev Chapter</button>
+                <span>Chapter {currentChapterIndex + 1} of {book.chapters.length}</span>
+                <button onClick={goToNextChapter} disabled={currentChapterIndex === book.chapters.length - 1} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded disabled:opacity-50">Next Chapter</button>
+            </div>
+        </div>
       </div>
-      <div ref={contentRef} className="flex-grow overflow-y-auto p-4 md:p-6 text-lg leading-relaxed font-serif">
-        {chapter.content.map((paragraph, index) => (
-          <p key={index} className="mb-6">{paragraph}</p>
-        ))}
+      
+      {/* Paginated Content */}
+      <div ref={contentPaneRef} className="flex-grow overflow-hidden relative">
+          <div 
+            ref={contentTextRef}
+            className="h-full text-lg leading-relaxed font-serif p-4 md:p-6"
+            style={{ 
+                columnWidth: `${contentPaneRef.current?.clientWidth}px`,
+                columnGap: '50px', // Creates space between pages
+                transform: `translateX(-${(currentPage - 1) * 100}%)`,
+                transition: 'transform 0.4s ease-in-out'
+            }}
+          >
+             {chapter.content.map((paragraph, index) => (
+              <p key={index} className="mb-6 break-inside-avoid-column">{paragraph}</p>
+            ))}
+          </div>
       </div>
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <button onClick={goToPreviousChapter} disabled={currentChapterIndex === 0} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded disabled:opacity-50">Previous</button>
-        <span>Chapter {currentChapterIndex + 1} of {book.chapters.length}</span>
-        <button onClick={goToNextChapter} disabled={currentChapterIndex === book.chapters.length - 1} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded disabled:opacity-50">Next</button>
-      </div>
-       <div className="p-4 flex justify-center">
-         <button onClick={onAiSummary} className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200 flex items-center gap-2">
+
+      {/* Footer */}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 flex justify-between items-center">
+        <button onClick={onAiSummary} className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition duration-200 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.898 20.562L16.25 22.5l-.648-1.938a3.375 3.375 0 00-2.672-2.672L11.25 18l1.938-.648a3.375 3.375 0 002.672-2.672L16.25 13.5l.648 1.938a3.375 3.375 0 002.672 2.672L21.75 18l-1.938.648a3.375 3.375 0 00-2.672 2.672z" /></svg>
-            Summarize Chapter
-         </button>
-       </div>
+            Summarize
+        </button>
+        <div className="flex items-center gap-4">
+            <button onClick={goToPreviousPage} disabled={currentPage === 1} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded disabled:opacity-50">Prev Page</button>
+            <span>Page {currentPage} of {totalPages}</span>
+            <button onClick={goToNextPage} disabled={currentPage === totalPages} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded disabled:opacity-50">Next Page</button>
+        </div>
+      </div>
     </div>
   );
 };
@@ -288,3 +344,4 @@ async function callGeminiAPI(prompt) {
     
     throw new Error("API call failed after multiple retries.");
 }
+
