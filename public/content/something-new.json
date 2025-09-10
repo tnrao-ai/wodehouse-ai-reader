@@ -1,0 +1,19 @@
+{
+  "id": "something-new",
+  "title": "Something New",
+  "author": "P. G. Wodehouse",
+  "chapters": [
+    {
+      "title": "CHAPTER I. A CASTLE IN THE AIR",
+      "content": [
+        "On a fine afternoon in the spring, a young man of pleasing exterior, but with an expression of such deep gloom on his face that he might have been a tidy-minded Cain, was leaning over the battlements of Blandings Castle. He was gazing into the middle distance with a moody frown. A more energetic man would have cursed. This young man had not the energy. He merely brooded.",
+        "A voice at his elbow broke in upon his thoughts.",
+        "“Fine afternoon, Mr. Ashe.”",
+        "The young man turned. A solidly-built, elderly man, with a round, red, clean-shaven face and an air of comfortable prosperity, was standing beside him.",
+        "“Yes,” said the young man.",
+        "“Nice view from here,” said the elderly man.",
+        "“Yes.”"
+      ]
+    }
+  ]
+}
